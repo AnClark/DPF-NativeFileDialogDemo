@@ -1,0 +1,9 @@
+[submodule "dpf"]
+	path = deps/dpf
+	url = https://github.com/DISTRHO/DPF.git
+[submodule "deps/dpf-widgets"]
+	path = deps/dpf-widgets
+	url = https://github.com/DISTRHO/DPF-Widgets
+[submodule "deps/nativefiledialog"]
+	path = deps/nativefiledialog
+	url = https://github.com/mlabbe/nativefiledialog
