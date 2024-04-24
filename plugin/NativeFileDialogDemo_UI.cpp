@@ -5,6 +5,10 @@
 
 #include "nfd.h"
 
+#include "extra/Thread.hpp"
+
+#include <sstream>
+
 // For ImGuiPluginUI::OsOpenInShell()
 #ifdef __WIN32
 #include "windows.h"
@@ -12,11 +16,63 @@
 
 START_NAMESPACE_DISTRHO
 
+class ImGuiPluginUI;    // Forward decls.
+
+class NfdThread : public Thread
+{
+    nfdchar_t *fNfdPath;
+    nfdresult_t *fNfdResult;
+
+public:
+    bool isFinished;
+    std::stringstream pathStream;    
+
+    NfdThread() : Thread(), fNfdPath(NULL), fNfdResult(NULL), isFinished(false)
+    {
+    }
+
+    void setNfdPathPointer(nfdchar_t *nfdPath)
+    {
+        fNfdPath = nfdPath;
+    }
+
+    void setNfdResultPointer(nfdresult_t *nfdResult)
+    {
+        fNfdResult = nfdResult;
+    }
+
+    void run() override
+    {
+        isFinished = false;
+
+        pathStream.str("");
+
+        *fNfdResult = NFD_OpenDialog(NULL, NULL, &fNfdPath);
+
+        if ( *fNfdResult == NFD_OKAY ) {
+            d_stderr("Got file path: %s", fNfdPath);
+
+            pathStream << fNfdPath;
+
+        }
+        else if ( *fNfdResult == NFD_CANCEL ) {
+            d_stderr("User pressed cancel.");
+        }
+        else {
+            d_stderr2("Error: %s\n", NFD_GetError() );
+        }
+
+        isFinished = true;
+    }
+};
+
 class ImGuiPluginUI : public UI
 {
     String fFileName;
     nfdchar_t *fNfdPath;
     nfdresult_t fNfdResult;
+
+    NfdThread fNfdThread;
 
     // ----------------------------------------------------------------------------------------------------------------
 
@@ -29,6 +85,9 @@ public:
         : UI(DISTRHO_UI_DEFAULT_WIDTH, DISTRHO_UI_DEFAULT_HEIGHT),
         fFileName(), fNfdPath(NULL), fNfdResult(NFD_OKAY)
     {
+        fNfdThread.setNfdPathPointer(fNfdPath);
+        fNfdThread.setNfdResultPointer(&fNfdResult);
+
         setGeometryConstraints(DISTRHO_UI_DEFAULT_WIDTH, DISTRHO_UI_DEFAULT_HEIGHT, true);
 
         ImGuiIO& io(ImGui::GetIO());
@@ -48,6 +107,8 @@ public:
 
     ~ImGuiPluginUI()
     {
+        fNfdThread.stopThread(-1);
+
         if (fNfdPath != NULL)
             free(fNfdPath);
     }
@@ -106,31 +167,18 @@ protected:
             ImGui::TextWrapped("%s", fFileName.length() > 0 ? (const char*)fFileName : "<Not Yet Specified>");
 
             if (ImGui::Button("Browse File...")) {
-                fNfdResult = NFD_OpenDialog(NULL, NULL, &fNfdPath);
+                fNfdThread.startThread();
+            }
 
-                if ( fNfdResult == NFD_OKAY ) {
-                    d_stderr("Got file path: %s", fNfdPath);
+            if (fNfdThread.isFinished) {
+                //d_stderr("Main thread: got file path %s, result = %d", fNfdPath, fNfdResult);
+                fFileName = String(fNfdThread.pathStream.str().c_str());
+                d_stderr("Main thread: got file path %s, result = %d", fFileName.length() > 0 ? (const char*)fFileName : "<NULL>", fNfdResult);
 
-                    fFileName = String(fNfdPath);
-                    setState("file_name", fFileName);
-                }
-                else if ( fNfdResult == NFD_CANCEL ) {
-                    d_stderr("User pressed cancel.");
-                }
-                else {
-                    d_stderr2("Error: %s\n", NFD_GetError() );
-                }
+                fNfdThread.isFinished = false;
             }
         }
         ImGui::End();
-    }
-
-    // ----------------------------------------------------------------------------------------------------------------
-    // Utilities
-
-    void nfdLoadFile(nfdchar_t *outPath, nfdresult_t& result)
-    {
-        result = NFD_OpenDialog( NULL, NULL, &outPath );
     }
 
     DISTRHO_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ImGuiPluginUI)
