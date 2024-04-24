@@ -24,10 +24,10 @@ class NfdThread : public Thread
     nfdresult_t *fNfdResult;
 
 public:
-    bool isFinished;
+    bool gotNewPath;
     std::stringstream pathStream;    
 
-    NfdThread() : Thread(), fNfdPath(NULL), fNfdResult(NULL), isFinished(false)
+    NfdThread() : Thread(), fNfdPath(NULL), fNfdResult(NULL), gotNewPath(false)
     {
     }
 
@@ -43,7 +43,7 @@ public:
 
     void run() override
     {
-        isFinished = false;
+        gotNewPath = false;
 
         pathStream.str("");
 
@@ -53,7 +53,7 @@ public:
             d_stderr("Got file path: %s", fNfdPath);
 
             pathStream << fNfdPath;
-
+            gotNewPath = true;
         }
         else if ( *fNfdResult == NFD_CANCEL ) {
             d_stderr("User pressed cancel.");
@@ -61,8 +61,6 @@ public:
         else {
             d_stderr2("Error: %s\n", NFD_GetError() );
         }
-
-        isFinished = true;
     }
 };
 
@@ -170,12 +168,12 @@ protected:
                 fNfdThread.startThread();
             }
 
-            if (fNfdThread.isFinished) {
+            if (fNfdThread.gotNewPath) {
                 //d_stderr("Main thread: got file path %s, result = %d", fNfdPath, fNfdResult);
                 fFileName = String(fNfdThread.pathStream.str().c_str());
                 d_stderr("Main thread: got file path %s, result = %d", fFileName.length() > 0 ? (const char*)fFileName : "<NULL>", fNfdResult);
 
-                fNfdThread.isFinished = false;
+                fNfdThread.gotNewPath = false;
             }
         }
         ImGui::End();
