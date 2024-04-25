@@ -21,24 +21,14 @@ class ImGuiPluginUI;    // Forward decls.
 class NfdThread : public Thread
 {
     nfdchar_t *fNfdPath;
-    nfdresult_t *fNfdResult;
 
 public:
     bool gotNewPath;
-    std::stringstream pathStream;    
+    std::stringstream pathStream;
+    nfdresult_t nfdResult;    
 
-    NfdThread() : Thread(), fNfdPath(NULL), fNfdResult(NULL), gotNewPath(false)
+    NfdThread() : Thread(), fNfdPath(NULL), gotNewPath(false), nfdResult(NFD_OKAY)
     {
-    }
-
-    void setNfdPathPointer(nfdchar_t *nfdPath)
-    {
-        fNfdPath = nfdPath;
-    }
-
-    void setNfdResultPointer(nfdresult_t *nfdResult)
-    {
-        fNfdResult = nfdResult;
     }
 
     void run() override
@@ -47,15 +37,18 @@ public:
 
         pathStream.str("");
 
-        *fNfdResult = NFD_OpenDialog(NULL, NULL, &fNfdPath);
+        nfdResult = NFD_OpenDialog(NULL, NULL, &fNfdPath);
 
-        if ( *fNfdResult == NFD_OKAY ) {
+        if ( nfdResult == NFD_OKAY ) {
             d_stderr("Got file path: %s", fNfdPath);
 
             pathStream << fNfdPath;
             gotNewPath = true;
+
+            // Only free fNfdPath on success, otherwise program may crash!
+            free(fNfdPath);
         }
-        else if ( *fNfdResult == NFD_CANCEL ) {
+        else if ( nfdResult == NFD_CANCEL ) {
             d_stderr("User pressed cancel.");
         }
         else {
@@ -67,8 +60,6 @@ public:
 class ImGuiPluginUI : public UI
 {
     String fFileName;
-    nfdchar_t *fNfdPath;
-    nfdresult_t fNfdResult;
 
     NfdThread fNfdThread;
 
@@ -81,11 +72,8 @@ public:
     */
     ImGuiPluginUI()
         : UI(DISTRHO_UI_DEFAULT_WIDTH, DISTRHO_UI_DEFAULT_HEIGHT),
-        fFileName(), fNfdPath(NULL), fNfdResult(NFD_OKAY)
+        fFileName()
     {
-        fNfdThread.setNfdPathPointer(fNfdPath);
-        fNfdThread.setNfdResultPointer(&fNfdResult);
-
         setGeometryConstraints(DISTRHO_UI_DEFAULT_WIDTH, DISTRHO_UI_DEFAULT_HEIGHT, true);
 
         ImGuiIO& io(ImGui::GetIO());
@@ -106,9 +94,6 @@ public:
     ~ImGuiPluginUI()
     {
         fNfdThread.stopThread(-1);
-
-        if (fNfdPath != NULL)
-            free(fNfdPath);
     }
 
 protected:
@@ -171,7 +156,7 @@ protected:
             if (fNfdThread.gotNewPath) {
                 //d_stderr("Main thread: got file path %s, result = %d", fNfdPath, fNfdResult);
                 fFileName = String(fNfdThread.pathStream.str().c_str());
-                d_stderr("Main thread: got file path %s, result = %d", fFileName.length() > 0 ? (const char*)fFileName : "<NULL>", fNfdResult);
+                d_stderr("Main thread: got file path %s, result = %d", fFileName.length() > 0 ? (const char*)fFileName : "<NULL>", fNfdThread.nfdResult);
 
                 fNfdThread.gotNewPath = false;
             }
