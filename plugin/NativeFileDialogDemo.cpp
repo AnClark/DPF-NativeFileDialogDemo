@@ -25,6 +25,8 @@ START_NAMESPACE_DISTRHO
  */
 class NativeFileDialogDemoPlugin : public Plugin
 {
+    String fFileName;
+
 public:
     NativeFileDialogDemoPlugin()
         : Plugin(0, 0, 1)
@@ -119,7 +121,7 @@ protected:
             break;
         }
 
-        state.hints = kStateIsFilenamePath;
+        state.hints = kStateIsFilenamePath | kStateIsHostWritable;
     }
 
    /* --------------------------------------------------------------------------------------------------------
@@ -142,6 +144,29 @@ protected:
     */
     void setParameterValue(uint32_t, float) override
     {
+    }
+
+   /**
+      Change an internal state.
+    */
+    void setState(const char* key, const char* value) override
+    {
+        if (strcmp(key, "file_name") == 0) {
+            fFileName = String(value);
+        }
+    }
+
+   /**
+      Get the value of an internal state.
+      The host may call this function from any non-realtime context.
+    */
+    String getState(const char* key) const override
+    {
+        if (strcmp(key, "file_name") == 0) {
+            return fFileName;
+        }
+
+        return String();
     }
 
    /* --------------------------------------------------------------------------------------------------------

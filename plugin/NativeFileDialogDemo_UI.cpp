@@ -158,6 +158,8 @@ protected:
                 fFileName = String(fNfdThread.pathStream.str().c_str());
                 d_stderr("Main thread: got file path %s, result = %d", fFileName.length() > 0 ? (const char*)fFileName : "<NULL>", fNfdThread.nfdResult);
 
+                setState("file_name", fFileName);
+
                 fNfdThread.gotNewPath = false;
             }
         }
